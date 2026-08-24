@@ -1,0 +1,11 @@
+{
+	"id": "lore/ley-lines",
+	"type": "lore",
+	"name": "The Ley Lines",
+	"aliases": ["ley line", "ley lines", "crossings"],
+	"summary": "Three currents cross beneath Yurikawa's old quarter; small magics pool at crossings.",
+	"body": "Cartographers argue about whether the lines follow the coast or made it. What is agreed: warmth pools where they cross, bread rises better there, and cold iron makes the air go flat and ordinary. The tide keeps its own schedule regardless.",
+	"links": ["loc/bakery"],
+	"tags": ["magic"],
+	"updated": "2026-08-24T00:00:00Z"
+}

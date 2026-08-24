@@ -1,0 +1,11 @@
+{
+	"id": "loc/bakery",
+	"type": "location",
+	"name": "The Bakery",
+	"aliases": ["bakery", "the old bakery"],
+	"summary": "Ninety-year-old brick shop above a ley crossing; warm bread and warmer secrets.",
+	"body": "Arcade frontage, blue door that sticks in damp weather. The cellar sits directly over the strongest crossing in town, which explains the bread's reputation and the sourdough's occasional moodiness.",
+	"links": ["char/kaori", "lore/ley-lines"],
+	"tags": ["household"],
+	"updated": "2026-08-24T00:00:00Z"
+}

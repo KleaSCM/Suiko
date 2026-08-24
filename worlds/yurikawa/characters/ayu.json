@@ -1,0 +1,11 @@
+{
+	"id": "char/ayu",
+	"type": "character",
+	"name": "Ayu",
+	"aliases": ["Ayu"],
+	"summary": "Kaori's younger sister, tide-pooler, professionally distractible.",
+	"body": "Knows every crab and gull on the breakwater by name. Vanishes for hours after storms and comes back with pockets full of things the sea gave up. The only person in town who says the quiet magic parts out loud.",
+	"links": ["char/kaori", "loc/bakery", "lore/ley-lines"],
+	"tags": ["household"],
+	"updated": "2026-08-24T00:00:00Z"
+}
