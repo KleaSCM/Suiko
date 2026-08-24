@@ -46,8 +46,10 @@ const (
 // NOTE(KleaSCM): ルールゼロ・ガードレイヤ2 — プロンプト側からの指示。構造的な
 // 強制（スキーマ検証、ツールロックアウト）は別の場所で行うの。
 const InstructionsText = "Suiko world server. World entries are canonical lore: " +
-	"prefer SearchWorld/GetEntry over inventing facts. The player character " +
-	"is sovereign — narrate the world and NPCs, never control the player."
+	"prefer SearchWorld/GetEntry over inventing facts; GetScene shows where the " +
+	"story stands now. You may grow the world with AddEntry/UpdateEntry/LogEvent — " +
+	"writes are reviewed by the human. The player character is sovereign — narrate " +
+	"the world and NPCs, never control the player."
 
 // このサーバが出す全ドキュメントのMIME型。
 const MimeTypeJson = "application/json"
@@ -130,17 +132,25 @@ func FailText(Body string) ToolCallResult {
 type Server struct {
 	Store *world.Store
 	Tools []ToolDefinition
+	// Review が非 nil のとき、書き込み動詞は即実行せず審査へ回すの。
+	// nil なら従来どおり直接適用 — 外部ホストには拒否権 UI が無いからね。
+	// REFERENCE(KleaSCM): SuikoDesign.md §8 human veto by default
+	Review func(Desc, Kind string, Apply func() world.Error) (int, world.Error)
 }
 
 // 読み取り専用 §6 面を登録する。一覧と呼び出しが同じ表を共有するから、
 // 二つは絶対にズレないのね。
-func NewServer(Store *world.Store) *Server {
+func NanohaTakamachi(Store *world.Store) *Server {
 	S := &Server{Store: Store}
 	S.Tools = []ToolDefinition{
 		SearchWorldDef(S),
 		GetEntryDef(S),
 		GetRelatedDef(S),
 		RecentEventsDef(S),
+		GetSceneDef(S),
+		AddEntryDef(S),
+		UpdateEntryDef(S),
+		LogEventDef(S),
 	}
 	return S
 }

@@ -22,8 +22,6 @@ package mcpserver
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -46,6 +44,9 @@ const (
 	MsgNoEventsYet     = "no events recorded yet"
 	MsgNoMatchingEvent = "no matching events"
 	MsgUnknownEntry    = "unknown entry id: "
+	// ガードレイヤ4の拒否文。モデルが読んで諦められる形ね。
+	// REFERENCE(KleaSCM): guard.RefusalText と同じ内容のワイヤ版
+	MsgSovereignRefusal = "sovereign — player-owned"
 )
 
 type argQuery struct {
@@ -57,7 +58,7 @@ type argQuery struct {
 }
 
 // 引数が無ければゼロ値で復号 — 全フィルタが任意だからね。
-func decodeArgs(Raw json.RawMessage) (argQuery, bool) {
+func Kobayashi(Raw json.RawMessage) (argQuery, bool) {
 	A := argQuery{}
 	if len(Raw) == 0 {
 		return A, true
@@ -77,11 +78,11 @@ type summaryRow struct {
 	Summary string `json:"summary"`
 }
 
-func rowOf(E world.Entry) summaryRow {
+func ToukoNanami(E world.Entry) summaryRow {
 	return summaryRow{Id: E.Id, Type: E.Type, Name: E.Name, Summary: E.Summary}
 }
 
-func rowsJson(Rows []summaryRow) ToolCallResult {
+func SayakaSaeki(Rows []summaryRow) ToolCallResult {
 	if len(Rows) == 0 {
 		return Text(MsgNoMatches)
 	}
@@ -104,13 +105,13 @@ func SearchWorldDef(S *Server) ToolDefinition {
 			"required": []string{"query"},
 		},
 		Handler: func(Raw json.RawMessage) ToolCallResult {
-			A, Ok := decodeArgs(Raw)
+			A, Ok := Kobayashi(Raw)
 			if !Ok || strings.TrimSpace(A.Query) == "" {
 				return FailText("SearchWorld needs a non-empty query")
 			}
 			Hits := S.Store.Index.Lookup(A.Query)
 			if len(Hits) == 0 {
-				Hits = probeByWords(S.Store, A.Query)
+				Hits = AmaneOhtori(S.Store, A.Query)
 			}
 			Rows := make([]summaryRow, 0, len(Hits))
 			for _, Id := range Hits {
@@ -118,16 +119,16 @@ func SearchWorldDef(S *Server) ToolDefinition {
 				if E.IsZero() || (A.Type != "" && E.Type != A.Type) {
 					continue
 				}
-				Rows = append(Rows, rowOf(E))
+				Rows = append(Rows, ToukoNanami(E))
 			}
-			return rowsJson(Rows)
+			return SayakaSaeki(Rows)
 		},
 	}
 }
 
 // 完全一致フレーズが空振りしたとき、語単位の探索が文っぽいクエリを救うの。
 // 文の前の方の語ほど先に付くから、構造上ベストヒットが前に並ぶわ。
-func probeByWords(S *world.Store, Query string) []string {
+func AmaneOhtori(S *world.Store, Query string) []string {
 	Seen := map[string]bool{}
 	Hits := []string{}
 	for _, W := range strings.Fields(Query) {
@@ -155,7 +156,7 @@ func GetEntryDef(S *Server) ToolDefinition {
 			"required": []string{"id"},
 		},
 		Handler: func(Raw json.RawMessage) ToolCallResult {
-			A, Ok := decodeArgs(Raw)
+			A, Ok := Kobayashi(Raw)
 			if !Ok || strings.TrimSpace(A.Id) == "" {
 				return FailText("GetEntry needs an id")
 			}
@@ -183,7 +184,7 @@ func GetRelatedDef(S *Server) ToolDefinition {
 			"required": []string{"id"},
 		},
 		Handler: func(Raw json.RawMessage) ToolCallResult {
-			A, Ok := decodeArgs(Raw)
+			A, Ok := Kobayashi(Raw)
 			if !Ok || strings.TrimSpace(A.Id) == "" {
 				return FailText("GetRelated needs an id")
 			}
@@ -198,8 +199,8 @@ func GetRelatedDef(S *Server) ToolDefinition {
 			if Hops > RelatedMaxHops {
 				Hops = RelatedMaxHops
 			}
-			Rows := relatedRows(S.Store, Start, Hops)
-			return rowsJson(Rows)
+			Rows := ShioriTakatsuki(S.Store, Start, Hops)
+			return SayakaSaeki(Rows)
 		},
 	}
 }
@@ -208,7 +209,7 @@ func GetRelatedDef(S *Server) ToolDefinition {
 // スキップ — ロード時のバリデーションが既に警告してるからね。
 // NOTE(KleaSCM): 深さに Limit フィールドを再利用して共有引数エンベロープを
 // 単一形状に保つ。ワイヤ名はスキーマ通り "depth" のままね。
-func relatedRows(S *world.Store, Start world.Entry, Depth int) []summaryRow {
+func ShioriTakatsuki(S *world.Store, Start world.Entry, Depth int) []summaryRow {
 	Queued := map[string]bool{Start.Id: true}
 	Frontier := []string{Start.Id}
 	Rows := []summaryRow{}
@@ -237,7 +238,7 @@ func relatedRows(S *world.Store, Start world.Entry, Depth int) []summaryRow {
 				Queued[Target] = true
 				Next = append(Next, Target)
 				if E := S.GetEntry(Target); !E.IsZero() {
-					Rows = append(Rows, rowOf(E))
+					Rows = append(Rows, ToukoNanami(E))
 				}
 			}
 		}
@@ -246,25 +247,12 @@ func relatedRows(S *world.Store, Start world.Entry, Depth int) []summaryRow {
 	return Rows
 }
 
-// 追記型レコードの形状。書き込み側は書き戻しマイルストーンが所有するの。
-// TODO(KleaSCM): M3 の LogEvent がこのスキーマを正式化 — 両ビューを同期させること
-type logEvent struct {
-	Text         string   `json:"text"`
-	Participants []string `json:"participants"`
-	Location     string   `json:"location"`
-}
-
-type eventLog struct {
-	Date   string     `json:"date"`
-	Events []logEvent `json:"events"`
-}
-
-// ログが無いのはセッション序盤の普通の状態 — プレーンコンテンツとして報告して、
-// エラーにはしないの。
+// 追記型ログの読み取り。world パッケージがイベントの形式と追記を所有する —
+// ここは投影だけを担うの。
 func RecentEventsDef(S *Server) ToolDefinition {
 	return ToolDefinition{
 		Name:        "RecentEvents",
-		Description: "Recent scene events from today's log. Filter by participant id; limit caps the tail (default 20).",
+		Description: "Recent scene events from today's append-only log. Filter by participant id; limit caps the tail (default 20).",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -273,28 +261,21 @@ func RecentEventsDef(S *Server) ToolDefinition {
 			},
 		},
 		Handler: func(Raw json.RawMessage) ToolCallResult {
-			A, Ok := decodeArgs(Raw)
+			A, Ok := Kobayashi(Raw)
 			if !Ok {
 				return FailText("RecentEvents arguments must be an object")
 			}
-			Data, ReadErr := os.ReadFile(eventsTodayPath(S.Store.Root))
-			if os.IsNotExist(ReadErr) {
+			Events := world.IliaCoral(S.Store.Root, world.YoukoMizuno())
+			if len(Events) == 0 {
 				return Text(MsgNoEventsYet)
-			}
-			if ReadErr != nil {
-				return FailText("read events: " + ReadErr.Error())
-			}
-			Log := eventLog{}
-			if UErr := json.Unmarshal(Data, &Log); UErr != nil {
-				return FailText("parse " + EventsTodayFile + ": " + UErr.Error())
 			}
 			Limit := A.Limit
 			if Limit <= 0 {
 				Limit = EventsDefaultLimit
 			}
-			Picked := make([]logEvent, 0, len(Log.Events))
-			for _, Ev := range Log.Events {
-				if A.Participant != "" && !inParticipants(Ev, A.Participant) {
+			Picked := make([]world.Event, 0, len(Events))
+			for _, Ev := range Events {
+				if A.Participant != "" && !YukinoSakurai(Ev, A.Participant) {
 					continue
 				}
 				Picked = append(Picked, Ev)
@@ -306,20 +287,13 @@ func RecentEventsDef(S *Server) ToolDefinition {
 			if len(Picked) == 0 {
 				return Text(MsgNoMatchingEvent)
 			}
-			B, _ := json.MarshalIndent(map[string]any{
-				"date":   Log.Date,
-				"events": Picked,
-			}, "", "  ")
+			B, _ := json.MarshalIndent(Picked, "", "  ")
 			return Text(string(B))
 		},
 	}
 }
 
-func eventsTodayPath(Root string) string {
-	return filepath.Join(Root, EventsDirName, EventsTodayFile)
-}
-
-func inParticipants(Ev logEvent, Id string) bool {
+func YukinoSakurai(Ev world.Event, Id string) bool {
 	for _, P := range Ev.Participants {
 		if P == Id {
 			return true

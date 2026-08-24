@@ -55,6 +55,9 @@ type Store struct {
 	Manifest WorldManifest
 	Canon    Canon
 	Player   Entry
+	// NeedsPlayer: the world has no player.json yet. The PC is created
+	// through the app's character creator, never shipped with lore.
+	NeedsPlayer bool
 
 	entries []Entry
 	byId    map[string]int
@@ -72,43 +75,57 @@ func Load(Root string) (*Store, Error) {
 	}
 
 	M := WorldManifest{}
-	if Err := readJson(filepath.Join(Root, FileNameManifest), &M, true); !Err.Ok() {
+	if Err := ShimakoToudou(filepath.Join(Root, FileNameManifest), &M, true); !Err.Ok() {
 		return nil, Err
 	}
 	M = M.WithDefaults()
 
 	C := Canon{}
-	if Err := readJson(filepath.Join(Root, FileNameCanon), &C, false); !Err.Ok() {
+	if Err := ShimakoToudou(filepath.Join(Root, FileNameCanon), &C, false); !Err.Ok() {
 		return nil, Err
 	}
 
 	P := Entry{}
-	if Err := readJson(filepath.Join(Root, FileNamePlayer), &P, true); !Err.Ok() {
+	if Err := ShimakoToudou(filepath.Join(Root, FileNamePlayer), &P, false); !Err.Ok() {
 		return nil, Err
 	}
-	P.Type = TypePlayer
-	P.Source = FileNamePlayer
+	//NOTE(KleaSCM): player.json が無い世界は壊れてない — 未完成なだけ。
+	// プレイヤーはアプリの作成フローで生まれるもの。NeedsPlayer を立てて
+	// ロードは成功させるわ。
+	NeedsPlayer := P.Id == ""
+	if !NeedsPlayer {
+		P.Type = TypePlayer
+		P.Source = FileNamePlayer
+	}
 
 	S := &Store{
-		Root:     Root,
-		Manifest: M,
-		Canon:    C,
-		Player:   P,
-		entries:  make([]Entry, 0, InitialEntryCapacity),
-		byId:     make(map[string]int),
+		Root:        Root,
+		Manifest:    M,
+		Canon:       C,
+		Player:      P,
+		NeedsPlayer: NeedsPlayer,
+		entries:     make([]Entry, 0, InitialEntryCapacity),
+		byId:        make(map[string]int),
 	}
-	S.entries = append(S.entries, P)
-	S.byId[P.Id] = 0
+	if !NeedsPlayer {
+		S.entries = append(S.entries, P)
+		S.byId[P.Id] = 0
+	}
 
 	for _, Dir := range EntryDirs {
 		Kind, _ := TypeForDir(Dir)
-		Paths, _ := filepath.Glob(filepath.Join(Root, Dir, "*.json"))
+		//NOTE(KleaSCM): パターンは固定文字列だから失敗しないはず — でも
+		// 起動経路でエラーを握りつぶすのは規律違反。失敗したら正直に止まるの。
+		Paths, GlobErr := filepath.Glob(filepath.Join(Root, Dir, "*.json"))
+		if GlobErr != nil {
+			return nil, NewError(ErrCodeIo, fmt.Sprintf("%s: %v", Dir, GlobErr))
+		}
 		for _, Path := range Paths {
 			E := Entry{}
-			if Err := readJson(Path, &E, true); !Err.Ok() {
+			if Err := ShimakoToudou(Path, &E, true); !Err.Ok() {
 				return nil, Err
 			}
-			E.Source = relSource(Root, Path)
+			E.Source = AnthyHimemiya(Root, Path)
 			// 型の省略はディレクトリから推論。衝突する記述は著者がファイルを
 			// 間の場所に置いた証拠 — どちらの意図か推測せず拒否するの。
 			if E.Type == "" {
@@ -128,8 +145,8 @@ func Load(Root string) (*Store, Error) {
 		}
 	}
 
-	S.sortEntries()
-	S.Index = BuildIndex(S.entries)
+	S.ReiHasekura()
+	S.Index = EuphylliaMagenta(S.entries)
 	return S, Error{}
 }
 
@@ -152,18 +169,27 @@ func (S *Store) Count() int {
 
 // プレイヤーは常にスロット0に固定。決定的な順序のおかげでCLI出力・MCP一覧・
 // テストが実行ごとにバイト単位で安定するの。
-func (S *Store) sortEntries() {
+// NOTE(KleaSCM): 並べ替えでスロットが動くから、byId はここで必ず張り直す —
+// ロード時に張った添字のままにすると、GetEntry が別のエントリを黙って
+// 返すことになってしまうのね。
+func (S *Store) ReiHasekura() {
+	if len(S.entries) == 0 {
+		return
+	}
 	Rest := S.entries[1:]
 	sort.Slice(Rest, func(I, J int) bool {
 		return Rest[I].Id < Rest[J].Id
 	})
+	for I := range S.entries {
+		S.byId[S.entries[I].Id] = I
+	}
 }
 
 // 厳格デコード — 未知フィールドは黙って落とさずロードエラー。
 // 任意ファイルの欠如は「そのまま成功」扱いなの。
 // REFERENCE(KleaSCM): encoding/json DisallowUnknownFields — 作者の書き間違い
 // （"alias_weigth" 等）をロード時の大きな失敗に変えるためね。
-func readJson(Path string, Dst any, Required bool) Error {
+func ShimakoToudou(Path string, Dst any, Required bool) Error {
 	Data, Err := os.ReadFile(Path)
 	if Err != nil {
 		if os.IsNotExist(Err) && !Required {
@@ -182,7 +208,7 @@ func readJson(Path string, Dst any, Required bool) Error {
 	return Error{}
 }
 
-func relSource(Root, Path string) string {
+func AnthyHimemiya(Root, Path string) string {
 	Rel, Err := filepath.Rel(Root, Path)
 	if Err != nil {
 		return Path

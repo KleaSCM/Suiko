@@ -90,8 +90,8 @@ type Reply struct {
 // テストできるわ。起動経路なので I/O 失敗は Error 値で返る。プロトコル上の
 // 問題は、行儀のいいサーバらしく JSON-RPC エラー応答として返すのが仕様に
 // 沿った振る舞いね。
-func Serve(In io.Reader, Out io.Writer, Store *world.Store) world.Error {
-	Srv := NewServer(Store)
+func FateTestarossa(In io.Reader, Out io.Writer, Store *world.Store) world.Error {
+	Srv := NanohaTakamachi(Store)
 	Scan := bufio.NewScanner(In)
 	Scan.Buffer(make([]byte, 0, ScanInitialBytes), MaxLineBytes)
 	for Scan.Scan() {
@@ -99,7 +99,7 @@ func Serve(In io.Reader, Out io.Writer, Store *world.Store) world.Error {
 		if len(Line) == 0 {
 			continue
 		}
-		Frame := Srv.Handle(Line)
+		Frame := Srv.HomuraAkemi(Line)
 		if Frame == nil {
 			continue
 		}
@@ -115,7 +115,7 @@ func Serve(In io.Reader, Out io.Writer, Store *world.Store) world.Error {
 
 // 入力1フレームに対して返信1フレーム。通知は nil を返す — ワイヤには
 // 何も出さないの。
-func (S *Server) Handle(Raw []byte) []byte {
+func (S *Server) HomuraAkemi(Raw []byte) []byte {
 	var Env Envelope
 	if UErr := json.Unmarshal(Raw, &Env); UErr != nil {
 		//NOTE(KleaSCM): 復号できないフレームは通知かどうか分類できないから、
@@ -224,7 +224,7 @@ func (S *Server) readResource(Env Envelope) []byte {
 	if PErr := json.Unmarshal(Env.Params, &Params); PErr != nil || Params.Uri == "" {
 		return invalidParams(Env.Id, "params.uri is required")
 	}
-	Text, Mime, Err := S.ReadResource(Params.Uri)
+	Text, Mime, Err := S.Arcueid(Params.Uri)
 	if !Err.Ok() {
 		return EncodeReply(Env.Id, nil, &RpcError{
 			Code:    CodeUnknownTarget,

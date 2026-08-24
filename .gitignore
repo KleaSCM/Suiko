@@ -1,0 +1,40 @@
+# ─────────────────────────────────────────────
+# Suiko — Go + Wails + Svelte
+# ─────────────────────────────────────────────
+
+# Build output (Wails places the binary here)
+/bin/
+/build/
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.txt
+vendor/
+
+# Node / Svelte frontend build artifacts.
+# NOTE: frontend/dist is produced by `wails build` / `wails dev` and is
+# embedded via go:embed — it is regenerated, never committed.
+frontend/node_modules/
+frontend/dist/
+frontend/.svelte-kit/
+
+# Wails
+*.log
+
+# Runtime world data + session locks. User-created; not part of the source.
+# Force-add a starter world with `git add -f worlds/<name>` if you want one tracked.
+/worlds/
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/

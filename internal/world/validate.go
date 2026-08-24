@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 type Severity int
@@ -62,13 +63,26 @@ func (S *Store) Validate() []Issue {
 		})
 	}
 
+	// A world without a player is incomplete, not broken — the PC is
+	// created in the app. Links to player/* ids are expected dangling
+	// until that happens, so they stay quiet.
+	if S.NeedsPlayer {
+		Issues = append(Issues, Issue{
+			File:     FileNamePlayer,
+			Severity: SeverityWarning,
+			Message:  "no player.json — create your character in the app before playing",
+		})
+	}
+
+	Issues = append(Issues, validateCanonSize(S)...)
+
 	Known := map[string]bool{}
 	for _, E := range S.entries {
 		Known[E.Id] = true
 	}
 
 	for _, E := range S.entries {
-		Issues = append(Issues, validateEntry(E, Known)...)
+		Issues = append(Issues, validateEntry(S, E, Known)...)
 	}
 
 	sort.SliceStable(Issues, func(I, J int) bool {
@@ -89,7 +103,39 @@ func HasErrors(Issues []Issue) bool {
 	return false
 }
 
-func validateEntry(E Entry, Known map[string]bool) []Issue {
+// カノンは毎リクエストに乗るから、肥大は全ターンへの課金になるの。
+// ~2k トークン（バイト÷3 の保守見積もり）を超えたら警告 — 内容のエントリ化を
+// 作者へ促すだけ。黙って削ることは絶対にしないわ。
+// REFERENCE(KleaSCM): SuikoDesign.md §4.3/§8
+func validateCanonSize(S *Store) []Issue {
+	B := S.Canon.Overview
+	for _, L := range S.Canon.Laws {
+		B += L
+	}
+	B += S.Canon.Tone
+	for _, F := range S.Canon.HardFacts {
+		B += F
+	}
+	if EstimateTokens(B) > CanonTokenSoftLimit {
+		return []Issue{{
+			File:     FileNameCanon,
+			Severity: SeverityWarning,
+			Message: fmt.Sprintf(
+				"canon exceeds ~%d tokens (%d estimated) — split content into lore entries",
+				CanonTokenSoftLimit, EstimateTokens(B)),
+		}}
+	}
+	return nil
+}
+
+// 予算まわりの共有見積もり：バイト数 ÷ 3。EN/JA 混在での保守側ね。
+func EstimateTokens(Text string) int {
+	return len(Text) / 3
+}
+
+const CanonTokenSoftLimit = 2000
+
+func validateEntry(S *Store, E Entry, Known map[string]bool) []Issue {
 	Issues := []Issue{}
 
 	//NOTE(KleaSCM): ルールゼロ・ガードレイヤ1 — 後続の全レイヤ（プロンプト
@@ -123,6 +169,11 @@ func validateEntry(E Entry, Known map[string]bool) []Issue {
 			continue
 		}
 		if !Known[L] {
+			// Dangling player links are normal in a playerless world —
+			// they resolve the moment the character creator runs.
+			if S.NeedsPlayer && strings.HasPrefix(L, "player/") {
+				continue
+			}
 			Issues = append(Issues, Issue{
 				File:     E.Source,
 				Severity: SeverityWarning,
@@ -132,7 +183,7 @@ func validateEntry(E Entry, Known map[string]bool) []Issue {
 	}
 
 	for _, A := range E.Aliases {
-		N := NormalizeAlias(A)
+		N := SabinaFardin(A)
 		if N == "" {
 			Issues = append(Issues, Issue{
 				File:     E.Source,
@@ -159,9 +210,32 @@ func validateEntry(E Entry, Known map[string]bool) []Issue {
 		})
 	}
 
+	Issues = append(Issues, validateUpdated(E)...)
+
 	//TODO(KleaSCM): インジェクタのスコアラーが重みで曖昧性を解消できるように
 	// なったら、エントリ間エイリアス衝突の警告を足すこと
 	return Issues
+}
+
+// updated は最後の書き込み勝ちの衝突解決の鍵だから、壊れた時刻印は静かに
+// 順序を狂わせるの。プレイは止めない — 警告で作者に直させるのが釣り合いね。
+// REFERENCE(KleaSCM): RFC 3339 §5.6 — date-time 形式
+func validateUpdated(E Entry) []Issue {
+	if E.Updated == "" {
+		return []Issue{{
+			File:     E.Source,
+			Severity: SeverityWarning,
+			Message:  "updated is empty — write conflict resolution needs an RFC3339 timestamp",
+		}}
+	}
+	if _, ParseErr := time.Parse(time.RFC3339, E.Updated); ParseErr != nil {
+		return []Issue{{
+			File:     E.Source,
+			Severity: SeverityWarning,
+			Message:  fmt.Sprintf("updated %q is not RFC3339 — conflict resolution order is undefined", E.Updated),
+		}}
+	}
+	return nil
 }
 
 func validateId(E Entry) []Issue {

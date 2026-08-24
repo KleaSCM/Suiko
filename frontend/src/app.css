@@ -1,0 +1,463 @@
+/**
+ * Suiko Design System — グローバルデザイントークンとベーススタイルね。
+ *
+ * Tailwind v4 のカスタムプロパティシステムを使って、全コンポーネントが
+ * 参照できる色・タイポグラフィ・アニメーションのトークンを定義するの。
+ * ダークモード専用 — 明るい環境は想定しないわ。
+ *
+ * DESIGN PHILOSOPHY:
+ * HSL カラースペースで調和を保つ。Violet (hue 270) をアクセント、
+ * Gold (hue 48) をロア発火のハイライトに使う。青灰色ベースの暗い
+ * パレットはコード・テキストの長時間読書に最適化されてるの。
+ *
+ * Author: KleaSCM
+ * Email: KleaSCM@gmail.com
+ */
+
+@import "tailwindcss";
+
+/* ─── カラートークン ─────────────────────────────────────── */
+@theme {
+	/* Backgrounds */
+	--color-bg:          hsl(225, 15%, 9%);
+	--color-surface:     hsl(225, 12%, 14%);
+	--color-surface-alt: hsl(225, 10%, 18%);
+	--color-surface-hi:  hsl(225, 10%, 22%);
+
+	/* Borders */
+	--color-border:      hsl(225, 10%, 24%);
+	--color-border-dim:  hsl(225, 8%, 18%);
+
+	/* Text */
+	--color-text:        hsl(220, 20%, 92%);
+	--color-text-muted:  hsl(220, 10%, 55%);
+	--color-text-dim:    hsl(220, 8%, 38%);
+
+	/* Accent — Violet */
+	--color-accent:      hsl(270, 70%, 68%);
+	--color-accent-dim:  hsl(270, 40%, 30%);
+	--color-accent-glow: hsl(270, 80%, 78%);
+
+	/* Lore fired — Warm Gold */
+	--color-fired:       hsl(48, 90%, 60%);
+	--color-fired-dim:   hsl(48, 50%, 25%);
+	--color-fired-text:  hsl(48, 100%, 85%);
+
+	/* Status */
+	--color-warn:        hsl(30, 90%, 58%);
+	--color-danger:      hsl(355, 75%, 58%);
+	--color-success:     hsl(150, 60%, 50%);
+	--color-info:        hsl(210, 80%, 60%);
+
+	/* Entry type colours */
+	--color-type-player:    hsl(270, 70%, 68%);
+	--color-type-character: hsl(200, 70%, 62%);
+	--color-type-location:  hsl(150, 55%, 52%);
+	--color-type-item:      hsl(48, 85%, 58%);
+	--color-type-faction:   hsl(20, 80%, 60%);
+	--color-type-lore:      hsl(280, 45%, 65%);
+
+	/* Typography */
+	--font-ui:   "Outfit", "Noto Sans JP", system-ui, sans-serif;
+	--font-mono: "JetBrains Mono", "Fira Code", monospace;
+
+	/* Spacing */
+	--radius-sm:  4px;
+	--radius-md:  8px;
+	--radius-lg:  12px;
+	--radius-xl:  18px;
+
+	/* Transitions */
+	--dur-fast:   100ms;
+	--dur-normal: 150ms;
+	--dur-slow:   250ms;
+	--ease-out:   cubic-bezier(0.16, 1, 0.3, 1);
+	--ease-in:    cubic-bezier(0.4, 0, 1, 1);
+
+	/* Shadows */
+	--shadow-sm:  0 1px 3px hsl(225 20% 4% / 0.5);
+	--shadow-md:  0 4px 16px hsl(225 20% 4% / 0.6);
+	--shadow-lg:  0 8px 32px hsl(225 20% 4% / 0.7);
+	--shadow-accent: 0 0 20px hsl(270 70% 68% / 0.25);
+	--shadow-fired:  0 0 12px hsl(48 90% 60% / 0.3);
+}
+
+/* ─── ベーススタイル ─────────────────────────────────────── */
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+:root {
+	font-family: var(--font-ui);
+	font-size: 14px;
+	line-height: 1.6;
+	font-weight: 400;
+	color: var(--color-text);
+	background-color: var(--color-bg);
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	text-rendering: optimizeLegibility;
+	color-scheme: dark;
+	/* Wails はテキスト選択でデフォルトのハイライトが出るの。カスタムカラーで合わせる。 */
+	::selection {
+		background: hsl(270 60% 40% / 0.5);
+		color: var(--color-text);
+	}
+}
+
+html,
+body,
+#app {
+	height: 100%;
+	width: 100%;
+	overflow: hidden;
+}
+
+/* ─── スクロールバー ─────────────────────────────────────── */
+::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--color-border);
+	border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--color-text-dim);
+}
+
+/* ─── 共通ユーティリティ ─────────────────────────────────── */
+.surface {
+	background: var(--color-surface);
+	border: 1px solid var(--color-border-dim);
+	border-radius: var(--radius-md);
+}
+
+.surface-alt {
+	background: var(--color-surface-alt);
+	border: 1px solid var(--color-border-dim);
+	border-radius: var(--radius-md);
+}
+
+/* ─── ボタン ─────────────────────────────────────────────── */
+.btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 7px 14px;
+	border-radius: var(--radius-md);
+	font-family: var(--font-ui);
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+	border: none;
+	transition:
+		background var(--dur-normal) var(--ease-out),
+		box-shadow var(--dur-normal) var(--ease-out),
+		transform var(--dur-fast) var(--ease-out);
+	user-select: none;
+	white-space: nowrap;
+}
+
+.btn:active {
+	transform: scale(0.97);
+}
+
+.btn-primary {
+	background: var(--color-accent);
+	color: hsl(225, 15%, 9%);
+}
+
+.btn-primary:hover {
+	background: var(--color-accent-glow);
+	box-shadow: var(--shadow-accent);
+}
+
+.btn-secondary {
+	background: var(--color-surface-alt);
+	color: var(--color-text);
+	border: 1px solid var(--color-border);
+}
+
+.btn-secondary:hover {
+	background: var(--color-surface-hi);
+	border-color: var(--color-text-dim);
+}
+
+.btn-ghost {
+	background: transparent;
+	color: var(--color-text-muted);
+}
+
+.btn-ghost:hover {
+	background: var(--color-surface-alt);
+	color: var(--color-text);
+}
+
+.btn-danger {
+	background: transparent;
+	color: var(--color-danger);
+	border: 1px solid hsl(355 75% 58% / 0.3);
+}
+
+.btn-danger:hover {
+	background: hsl(355 75% 58% / 0.1);
+	border-color: var(--color-danger);
+}
+
+.btn-sm {
+	padding: 4px 10px;
+	font-size: 12px;
+}
+
+.btn-icon {
+	padding: 7px;
+	border-radius: var(--radius-md);
+}
+
+.btn:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+	transform: none;
+}
+
+/* ─── インプット ─────────────────────────────────────────── */
+.input {
+	display: block;
+	width: 100%;
+	padding: 8px 12px;
+	background: var(--color-surface-alt);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	color: var(--color-text);
+	font-family: var(--font-ui);
+	font-size: 13px;
+	line-height: 1.5;
+	transition:
+		border-color var(--dur-normal) var(--ease-out),
+		box-shadow var(--dur-normal) var(--ease-out);
+	outline: none;
+}
+
+.input:focus {
+	border-color: var(--color-accent);
+	box-shadow: 0 0 0 3px hsl(270 70% 68% / 0.15);
+}
+
+.input::placeholder {
+	color: var(--color-text-dim);
+}
+
+.textarea {
+	resize: vertical;
+	min-height: 80px;
+}
+
+/* ─── ラベル ─────────────────────────────────────────────── */
+.label {
+	display: block;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--color-text-muted);
+	margin-bottom: 6px;
+}
+
+/* ─── バッジ ─────────────────────────────────────────────── */
+.badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 8px;
+	border-radius: 100px;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.03em;
+}
+
+/* エントリタイプバッジ — typeColor() ユーティリティが適用するの */
+.badge-player    { background: hsl(270 60% 28%); color: var(--color-type-player); }
+.badge-character { background: hsl(200 50% 20%); color: var(--color-type-character); }
+.badge-location  { background: hsl(150 40% 18%); color: var(--color-type-location); }
+.badge-item      { background: hsl(48 50% 18%);  color: var(--color-type-item); }
+.badge-faction   { background: hsl(20 50% 18%);  color: var(--color-type-faction); }
+.badge-lore      { background: hsl(280 35% 20%); color: var(--color-type-lore); }
+
+/* ─── ロアファイアドカード ─────────────────────────────────── */
+.fired-card {
+	border: 1px solid hsl(48 70% 40% / 0.4);
+	background: hsl(48 50% 10% / 0.5);
+	border-radius: var(--radius-md);
+	transition:
+		border-color var(--dur-normal) var(--ease-out),
+		background var(--dur-normal) var(--ease-out);
+}
+
+.fired-card:hover {
+	border-color: hsl(48 90% 60% / 0.7);
+	background: hsl(48 50% 12% / 0.7);
+}
+
+/* ─── チャットバブル ─────────────────────────────────────── */
+.bubble-user {
+	background: var(--color-surface-alt);
+	border: 1px solid var(--color-border-dim);
+	border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg);
+}
+
+/* ─── チップ（リンク・参加者表示） ─────────────────────────── */
+.chip {
+	display: inline-flex;
+	align-items: center;
+	padding: 2px 10px;
+	border-radius: 100px;
+	font-size: 11px;
+	font-family: var(--font-mono);
+	background: hsl(225 12% 20%);
+	border: 1px solid var(--color-border-dim);
+	color: var(--color-text-muted);
+	transition:
+		border-color var(--dur-fast) var(--ease-out),
+		color var(--dur-fast) var(--ease-out);
+}
+
+.chip-removable {
+	cursor: pointer;
+}
+
+.chip-removable:hover {
+	border-color: hsl(355 75% 58% / 0.6);
+	color: var(--color-danger);
+}
+
+.bubble-narrator {
+	background: hsl(270 25% 14%);
+	border: 1px solid hsl(270 30% 22%);
+	border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-sm);
+}
+
+/* ─── アニメーション ─────────────────────────────────────── */
+@keyframes FadeIn {
+	from { opacity: 0; transform: translateY(8px); }
+	to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes SlideInLeft {
+	from { opacity: 0; transform: translateX(-12px); }
+	to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes SlideInRight {
+	from { opacity: 0; transform: translateX(12px); }
+	to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes Pulse {
+	0%, 100% { opacity: 1; }
+	50%       { opacity: 0.4; }
+}
+
+@keyframes StreamCursor {
+	0%, 100% { opacity: 1; }
+	50%       { opacity: 0; }
+}
+
+@keyframes GlowAccent {
+	0%, 100% { box-shadow: 0 0 10px hsl(270 70% 68% / 0.2); }
+	50%       { box-shadow: 0 0 22px hsl(270 70% 68% / 0.45); }
+}
+
+.animate-fade-in {
+	animation: FadeIn var(--dur-slow) var(--ease-out) both;
+}
+
+.animate-slide-left {
+	animation: SlideInLeft var(--dur-normal) var(--ease-out) both;
+}
+
+.animate-slide-right {
+	animation: SlideInRight var(--dur-normal) var(--ease-out) both;
+}
+
+.animate-pulse-subtle {
+	animation: Pulse 2s ease-in-out infinite;
+}
+
+.cursor-stream::after {
+	content: "▋";
+	display: inline-block;
+	animation: StreamCursor 0.8s step-end infinite;
+	color: var(--color-accent);
+	font-size: 0.85em;
+	margin-left: 1px;
+}
+
+/* ─── フォームグループ ───────────────────────────────────── */
+.form-group {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.form-row {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 12px;
+}
+
+/* ─── セパレーター ───────────────────────────────────────── */
+.sep {
+	border: none;
+	border-top: 1px solid var(--color-border-dim);
+}
+
+/* ─── モノスペース（JSONエディタ）────────────────────────── */
+.mono {
+	font-family: var(--font-mono);
+	font-size: 12px;
+	line-height: 1.7;
+}
+
+/* ─── スクロール可能コンテナ ─────────────────────────────── */
+.scroll-y {
+	overflow-y: auto;
+	overflow-x: hidden;
+	scroll-behavior: smooth;
+}
+
+/* ─── トランジション ─────────────────────────────────────── */
+.transition-colors {
+	transition:
+		color var(--dur-normal) var(--ease-out),
+		background-color var(--dur-normal) var(--ease-out),
+		border-color var(--dur-normal) var(--ease-out);
+}
+
+/* ─── テキストの省略 ─────────────────────────────────────── */
+.truncate {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* ─── アクセントハイライト線 ─────────────────────────────── */
+.accent-bar {
+	border-left: 2px solid var(--color-accent);
+	padding-left: 10px;
+}
+
+.fired-bar {
+	border-left: 2px solid var(--color-fired);
+	padding-left: 10px;
+}

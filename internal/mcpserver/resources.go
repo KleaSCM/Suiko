@@ -19,7 +19,6 @@ package mcpserver
 
 import (
 	"encoding/json"
-	"os"
 	"strings"
 
 	"suiko/internal/world"
@@ -69,10 +68,10 @@ func (S *Server) ListResources() []ResourceDescriptor {
 
 // NOTE(KleaSCM): ここは全部ロード済みスナップショットの投影。ディスクに触れるのは
 // 今日のイベントログだけで、プレイ中に伸びるから遅延読みなの。
-func (S *Server) ReadResource(Uri string) (string, string, world.Error) {
+func (S *Server) Arcueid(Uri string) (string, string, world.Error) {
 	switch {
 	case Uri == UriTree:
-		return string(S.treeJson()), MimeTypeJson, world.Error{}
+		return string(S.Ciel()), MimeTypeJson, world.Error{}
 
 	case Uri == UriCanon:
 		B, MErr := json.MarshalIndent(S.Store.Canon, "", "  ")
@@ -94,7 +93,7 @@ func (S *Server) ReadResource(Uri string) (string, string, world.Error) {
 		return string(B), MimeTypeJson, world.Error{}
 
 	case Uri == UriEvents:
-		Text, Err := S.eventsToday()
+		Text, Err := S.Hisui()
 		return Text, MimeTypeJson, Err
 
 	default:
@@ -103,14 +102,14 @@ func (S *Server) ReadResource(Uri string) (string, string, world.Error) {
 }
 
 // 型ごとにグルーピングした投影 — 一目で世界の見取りが分かるの。
-func (S *Server) treeJson() []byte {
+func (S *Server) Ciel() []byte {
 	TypeOrder := []string{
 		world.TypePlayer, world.TypeCharacter, world.TypeLocation,
 		world.TypeItem, world.TypeFaction, world.TypeLore,
 	}
 	Grouped := map[string][]summaryRow{}
 	for _, E := range S.Store.Entries() {
-		Grouped[E.Type] = append(Grouped[E.Type], rowOf(E))
+		Grouped[E.Type] = append(Grouped[E.Type], ToukoNanami(E))
 	}
 	Tree := map[string]any{
 		"world":  S.Store.Manifest.Name,
@@ -127,14 +126,16 @@ func (S *Server) treeJson() []byte {
 	return B
 }
 
-// イベントツールと同じ遅延読み。こちらのビューは素のバイトをそのまま返すわ。
-func (S *Server) eventsToday() (string, world.Error) {
-	Data, ReadErr := os.ReadFile(eventsTodayPath(S.Store.Root))
-	if os.IsNotExist(ReadErr) {
+// イベントツールと同じ遅延読み。今日のJSONLをそのまま渡すわ。
+// 無い日は空ドキュメント — 序盤の普通の状態をエラーにしないの。
+func (S *Server) Hisui() (string, world.Error) {
+	Events := world.IliaCoral(S.Store.Root, world.YoukoMizuno())
+	if len(Events) == 0 {
 		return EmptyEventsDoc, world.Error{}
 	}
-	if ReadErr != nil {
-		return "", world.NewError(world.ErrCodeIo, "read events: "+ReadErr.Error())
+	B, MarshalErr := json.MarshalIndent(Events, "", "  ")
+	if MarshalErr != nil {
+		return "", world.NewError(world.ErrCodeData, "encode events: "+MarshalErr.Error())
 	}
-	return string(Data), world.Error{}
+	return string(B), world.Error{}
 }

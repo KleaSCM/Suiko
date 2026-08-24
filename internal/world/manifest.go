@@ -15,23 +15,35 @@
 package world
 
 // マニフェストが予算フィールドを空けていたときに適用されるエンジン既定。
-// REFERENCE(KleaSCM): SuikoDesign.md §7 — Tier-1/Tier-2 注入の上限を束ねる
+// REFERENCE(KleaSCM): SuikoDesign.md §5/§7 — 注入予算と重複排除窓を束ねる
 const (
-	DefaultInjectTokens = 3000
-	DefaultTopKEntries  = 8
-	DefaultRecencyTurns = 20
+	DefaultInjectTokens    = 3000
+	DefaultTopKEntries     = 8
+	DefaultRecencyTurns    = 20
+	DefaultDedupWindowTurn = 10
+)
+
+// プロバイダバックエンドの選択肢。
+// REFERENCE(KleaSCM): SuikoDesign.md §12 — opencode サーバか素の
+// OpenAI互換クライアントか。下流のセッションループは同一の振る舞いね。
+const (
+	BackendOpenAI   = "openai"
+	BackendOpenCode = "opencode"
 )
 
 type Budget struct {
 	InjectMaxTokens   int `json:"inject_max_tokens"`
 	TopKEntries       int `json:"top_k_entries"`
 	RecencyBoostTurns int `json:"recency_boost_turns"`
+	DedupWindowTurns  int `json:"dedup_window_turns"`
 }
 
 type ProviderConfig struct {
-	BaseUrl string `json:"base_url"`
-	Model   string `json:"model"`
-	ApiKey  string `json:"api_key,omitempty"`
+	Backend   string `json:"backend"`
+	ServerUrl string `json:"server_url"`
+	BaseUrl   string `json:"base_url"`
+	ModelId   string `json:"model_id"`
+	ApiKey    string `json:"api_key,omitempty"`
 }
 
 type WorldManifest struct {
@@ -44,8 +56,10 @@ type WorldManifest struct {
 	Provider         ProviderConfig `json:"provider"`
 }
 
-// ゼロ値の予算フィールドはエンジン既定で埋める。正の値にクランプするのは、
+// ゼロ値の調整フィールドはエンジン既定で埋める。正の値にクランプするのは、
 // 下流の算術がゼロ除算したり空っぽの文脈を組んだりしないようにするためね。
+// バックエンドが未知の文字列だったら素の OpenAI互換へ落ちる — 起動は止めず、
+// validate が警告を挙げる道を残すの。
 func (M WorldManifest) WithDefaults() WorldManifest {
 	if M.Budget.InjectMaxTokens <= 0 {
 		M.Budget.InjectMaxTokens = DefaultInjectTokens
@@ -56,5 +70,15 @@ func (M WorldManifest) WithDefaults() WorldManifest {
 	if M.Budget.RecencyBoostTurns <= 0 {
 		M.Budget.RecencyBoostTurns = DefaultRecencyTurns
 	}
+	if M.Budget.DedupWindowTurns <= 0 {
+		M.Budget.DedupWindowTurns = DefaultDedupWindowTurn
+	}
+	if M.Provider.Backend == "" {
+		M.Provider.Backend = BackendOpenAI
+	}
 	return M
+}
+
+func (P ProviderConfig) KnownBackend() bool {
+	return P.Backend == BackendOpenAI || P.Backend == BackendOpenCode
 }

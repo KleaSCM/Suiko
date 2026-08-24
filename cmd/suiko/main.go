@@ -40,6 +40,8 @@ func main() {
 		CmdValidate(os.Args[2:])
 	case "serve":
 		CmdServe(os.Args[2:])
+	case "import":
+		CmdImport(os.Args[2:])
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -97,18 +99,40 @@ func CmdServe(Args []string) {
 	}
 	fmt.Fprintf(os.Stderr, "suiko serve: %s (%d entries) — mcp over stdio\n",
 		Store.Manifest.Name, Store.Count())
-	if ServeErr := mcpserver.Serve(os.Stdin, os.Stdout, Store); !ServeErr.Ok() {
+	if ServeErr := mcpserver.FateTestarossa(os.Stdin, os.Stdout, Store); !ServeErr.Ok() {
 		fmt.Fprintf(os.Stderr, "serve failed: %s\n", ServeErr.Message)
 		os.Exit(ExitInvalid)
 	}
+}
+
+// Convert an external lorebook directory (SillyTavern-style keys/value
+// cards) into a Suiko world at the destination path. The world is created
+// playerless — the PC is authored in the app afterwards.
+func CmdImport(Args []string) {
+	if len(Args) != 2 {
+		fmt.Fprintln(os.Stderr, "usage: suiko import <lorebook-dir> <world-dir>")
+		os.Exit(ExitUsage)
+	}
+	if Err := world.MioAkiyama(Args[0], Args[1]); !Err.Ok() {
+		fmt.Fprintf(os.Stderr, "import failed: %s\n", Err.Message)
+		os.Exit(ExitInvalid)
+	}
+	St, LoadErr := world.Load(Args[1])
+	if !LoadErr.Ok() {
+		fmt.Fprintf(os.Stderr, "imported, but world does not load: %s\n", LoadErr.Message)
+		os.Exit(ExitInvalid)
+	}
+	fmt.Printf("imported %s: %d entries — no player yet, create one in the app\n",
+		St.Manifest.Name, St.Count())
 }
 
 func usage() {
 	fmt.Print(`suiko — MCP-native roleplay engine
 
 usage:
-	suiko validate <world-dir>   check a world, report issues
-	suiko serve <world-dir>      expose world over MCP (stdio)
+	suiko validate <world-dir>              check a world, report issues
+	suiko serve <world-dir>                 expose world over MCP (stdio)
+	suiko import <lorebook-dir> <world-dir> convert a lorebook into a world
 
 exit codes:
 	0 valid   1 invalid or unreadable   2 usage error
