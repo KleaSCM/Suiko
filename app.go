@@ -45,16 +45,13 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"suiko/internal/opencodeman"
 	"suiko/internal/provider"
 	"suiko/internal/scene"
 	"suiko/internal/session"
 	"suiko/internal/world"
 )
 
-// JS 側に返す薄いラッパー型。Go の内部型をそのまま返すと JSON タグが
-// snake_case になって KleaSCM スタイルと混在するから、フロント専用に
-// PascalCase フィールドを揃えた型を用意するわ。
-// NOTE(KleaSCM): JSON タグは snake_case が唯一の例外 — ワイヤ互換が要る
 type AppError struct {
 	Ok      bool   `json:"ok"`
 	Message string `json:"message"`
@@ -83,7 +80,7 @@ type EntryView struct {
 	Updated     string             `json:"updated"`
 }
 
-// SearchWorld の検索ヒット。body は省いて軽量に。
+// 検索ヒット。body は省いて軽量に。
 type SearchHit struct {
 	Id      string `json:"id"`
 	Type    string `json:"type"`
@@ -135,13 +132,14 @@ const (
 	EventStoreReady = "store-ready"
 )
 
-// App はデスクトップシェルの状態を全部持つ。フィールドは StartSession で
+// デスクトップシェルの状態を全部持つ。フィールドは StartSession で
 // セットされ、ターンループ中はシングルスレッドで触られるの（Wails が保証）。
 type App struct {
 	Ctx            context.Context
 	ActiveStore    *world.Store
 	ActiveSession  *session.Session
 	ActiveProvider provider.Provider
+	ActiveWorldDir string
 	WorldsDir      string
 	PendingWrites  []EntryView
 }
@@ -202,7 +200,12 @@ func (A *App) TomoriShikina(WorldPath string) AppError {
 	}
 	A.ActiveStore = St
 
-	Prov := KanoYamanouchi(St.Manifest.Provider)
+	// 前の世界が所有していた opencode を止めて、今度の世界専用へ切り替える。
+	if A.ActiveWorldDir != "" {
+		opencodeman.Tsubaki(A.ActiveWorldDir)
+	}
+	A.ActiveWorldDir = WorldPath
+	Prov := KanoYamanouchi(St.Manifest.Provider, WorldPath)
 	A.ActiveProvider = Prov
 	A.ActiveSession = session.KyoukoToudou(St, Prov)
 
@@ -212,6 +215,11 @@ func (A *App) TomoriShikina(WorldPath string) AppError {
 		"needsPlayer": St.NeedsPlayer,
 	})
 	return AppError{Ok: true}
+}
+
+// アプリ終了時 — Wails が呼ぶ。Suiko が占有した opencode を全部片付ける。
+func (A *App) Shutdown(Ctx context.Context) {
+	opencodeman.Sakura()
 }
 
 // ロード済みワールドのマニフェストを返す。
@@ -245,7 +253,6 @@ func (A *App) SumikaTachibana(M world.WorldManifest) AppError {
 // ────────────────────────────────────────────────────────
 
 // 全エントリをタイプ別にソートして返す。
-//
 // NOTE(KleaSCM): エントリ一覧ロード係。ストアの内部スライスを
 // コピーするから、UI 側が変更してもエンジン側は汚れないわ。
 func (A *App) TiltyClaret() []EntryView {
@@ -268,7 +275,6 @@ func (A *App) TiltyClaret() []EntryView {
 }
 
 // id でエントリを一件返す。見つからなければ空の EntryView（ZII）。
-//
 // NOTE(KleaSCM): id → EntryView の単件ルックアップ係
 func (A *App) YuuKoito(Id string) EntryView {
 	if A.ActiveStore == nil {
@@ -278,9 +284,6 @@ func (A *App) YuuKoito(Id string) EntryView {
 	return Elma(E)
 }
 
-// インジェクタのマッチャーでクエリに合うエントリを返す。
-// EntryType が空なら全タイプ対象。
-//
 // NOTE(KleaSCM): ファジーフィルタ係。
 // インジェクタの NormText + N-gram walk を流用して、UI の検索窓と
 // Push パスが同じロジックを共有するわ。
@@ -315,7 +318,6 @@ func (A *App) AnisphiaWynnPalettia(Query string, EntryType string) []SearchHit {
 }
 
 // リンクグラフを depth 段まで歩いてサマリーを返す。
-//
 // NOTE(KleaSCM): リンクグラフ走査係。BFS で幅優先なの。
 func (A *App) MiyakoKodama(Id string, Depth int) []SearchHit {
 	if A.ActiveStore == nil {
@@ -411,7 +413,6 @@ func (A *App) SakuraAdachi(Limit int) []EventView {
 
 // 新しいエントリを書いてストアのインデックスを再構築する。
 // auto_accept_writes が false なら pending キューへ積む。
-//
 // NOTE(KleaSCM): AddEntry バインディング係。主権チェックは
 // エンジン側の world.WriteEntry が担うわ。
 func (A *App) ClaireFrancois(EntryType, Name string, Aliases []string, Summary, Body string) AppError {
@@ -446,7 +447,6 @@ func (A *App) ClaireFrancois(EntryType, Name string, Aliases []string, Summary, 
 }
 
 // 既存エントリへパッチを当てる。主権エントリは拒否。
-//
 // NOTE(KleaSCM): UpdateEntry バインディング係。
 // Patch フィールドが空文字のときは既存値を保つから、
 // フォームが触らなかったフィールドは汚れないわ。
@@ -513,14 +513,14 @@ func (A *App) MitsukiYano() []EntryView {
 // Import & character creation
 // ────────────────────────────────────────────────────────
 
-// ImportResult carries the created world path back to the UI.
+// carries the created world path back to the UI.
 type ImportResult struct {
 	Ok      bool   `json:"ok"`
 	Message string `json:"message"`
 	Path    string `json:"path"`
 }
 
-// NodokaManabe imports an external lorebook directory into
+// imports an external lorebook directory into
 // worlds/<basename>/. Returns the created world path for immediate open.
 func (A *App) NodokaManabe(SrcDir string) ImportResult {
 	if SrcDir == "" {
@@ -534,7 +534,7 @@ func (A *App) NodokaManabe(SrcDir string) ImportResult {
 	return ImportResult{Ok: true, Path: Dst}
 }
 
-// UiHirasawa writes the player character the author just designed.
+// writes the player character the author just designed.
 // Smart intake: RawCard may be any reasonable character-sheet shape
 // ("· Identity: …", "[APPEARANCE]", plain paragraphs). Blank fields are
 // fine — summary and body are derived from whatever arrived. Name is the
@@ -590,7 +590,6 @@ func (A *App) UiHirasawa(Name string, Aliases []string, Summary string, Body str
 
 // ひとターンを実行して token / turn-done イベントを emit する。
 // ストリーム中はトークンを EventsEmit("token") で UI へ押し出すわ。
-//
 // NOTE(KleaSCM): セッションターン実行係。OnDelta を使って
 // ストリーミングトークンをリアルタイムで UI へ届けるの。
 func (A *App) KanadeAmou(UserText string) AppError {
@@ -634,7 +633,6 @@ func (A *App) Tarumi() AppError {
 // ────────────────────────────────────────────────────────
 // World selector helpers
 // ────────────────────────────────────────────────────────
-
 // ファイルダイアログを開いてディレクトリを選ばせる。
 func (A *App) HougetsuShimamura() string {
 	Dir, DialogErr := runtime.OpenDirectoryDialog(A.Ctx, runtime.OpenDialogOptions{
@@ -649,7 +647,6 @@ func (A *App) HougetsuShimamura() string {
 // ────────────────────────────────────────────────────────
 // Internal helpers — bound でない
 // ────────────────────────────────────────────────────────
-
 // エントリの Go 型を JS ビュー型へ変換する。
 // スライスが nil のときは空スライスを返す（JSON で null にならないように）。
 func Elma(E world.Entry) EntryView {
@@ -737,11 +734,55 @@ func cleanAliases(In []string) []string {
 }
 
 // プロバイダ設定から適切な Provider を構築する。
-func KanoYamanouchi(Cfg world.ProviderConfig) provider.Provider {
+// opencode で server_url が空（または "suiko"）なら、Suiko が専有する
+// opencode インスタンスへ繋ぐ — Hanako の人格や MCP が混ざらないようにね。
+// 明示的な URL があればその外部インスタンスをそのまま使う。
+func KanoYamanouchi(Cfg world.ProviderConfig, WorldPath string) provider.Provider {
 	if Cfg.Backend == world.BackendOpenCode {
-		return provider.SorawoKamikoshi(Cfg.ServerUrl)
+		Url := strings.TrimSpace(Cfg.ServerUrl)
+		// 空欄・"suiko"・そして 4096(Hanako 専用) は全て Suiko 専有インスタンスへ —
+		// 4096 はユーザーの個人 Hanako opencode だから、遊びで繋ぎに行ってはいけない。
+		if Url == "" || Url == "suiko" || Url == "http://127.0.0.1:4096" {
+			return provider.SorawoKamikoshiWorld(WorldPath)
+		}
+		return provider.SorawoKamikoshi(Url)
 	}
 	return provider.RallyVincent(Cfg.BaseUrl, Cfg.ApiKey)
+}
+
+// モデル一覧取得の結果を UI へ返すビュー。
+// NOTE(KleaSCM): Models は空でも非 nil スライスを返す — JSON で null に
+// ならないようにゼロ値を揃えるの。
+type ModelListResult struct {
+	Ok      bool                   `json:"ok"`
+	Message string                 `json:"message"`
+	Models  []provider.ModelOption `json:"models"`
+}
+
+// Settings のモデルドロップダウン用に、opencode サーバが提供できる
+// モデル一覧を引くの。opencode 以外のバックエンドは一覧不要 —
+// 手入力で足りるから空（成功）を返すわ。
+func (A *App) NagisaKiryu(Backend string, ServerUrl string) ModelListResult {
+	if Backend != world.BackendOpenCode {
+		return ModelListResult{Ok: true, Models: []provider.ModelOption{}}
+	}
+	// "suiko"・空欄・4096(Hanako) なら、Suiko 専有のインスタンス（世界なし=一覧用）へ。
+	// UI 発なので外へは短く打ち切る — サーバが寝ていても待たせすぎないの。
+	if Trimmed := strings.TrimSpace(ServerUrl); Trimmed == "" || Trimmed == "suiko" || Trimmed == "http://127.0.0.1:4096" {
+		var Err error
+		ServerUrl, Err = opencodeman.Nadeshiko("")
+		if Err != nil {
+			return ModelListResult{Ok: false, Message: Err.Error(), Models: []provider.ModelOption{}}
+		}
+	}
+	Ctx, Cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer Cancel()
+
+	Opts, Err := provider.KuyuMashima(Ctx, ServerUrl)
+	if Err != nil {
+		return ModelListResult{Ok: false, Message: Err.Error(), Models: []provider.ModelOption{}}
+	}
+	return ModelListResult{Ok: true, Models: Opts}
 }
 
 // 新規エントリを書いてインデックスを再構築するヘルパー。

@@ -38,6 +38,10 @@ export function MiyakoKodama(arg1, arg2) {
   return window['go']['main']['App']['MiyakoKodama'](arg1, arg2);
 }
 
+export function NagisaKiryu(arg1, arg2) {
+  return window['go']['main']['App']['NagisaKiryu'](arg1, arg2);
+}
+
 export function NodokaManabe(arg1) {
   return window['go']['main']['App']['NodokaManabe'](arg1);
 }
@@ -48,6 +52,10 @@ export function RaeTaylor(arg1, arg2) {
 
 export function SakuraAdachi(arg1) {
   return window['go']['main']['App']['SakuraAdachi'](arg1);
+}
+
+export function Shutdown(arg1) {
+  return window['go']['main']['App']['Shutdown'](arg1);
 }
 
 export function SumikaTachibana(arg1) {

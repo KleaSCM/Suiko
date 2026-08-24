@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"suiko/internal/inject"
 	"suiko/internal/narrate"
@@ -29,6 +30,11 @@ import (
 // 折るわ。大きすぎる値は文脈の破壊、小さすぎる値は記憶の喪失だから、
 // 控えめで安全な既定にしてあるの。
 const DefaultHistoryCap = 40
+
+// 1ターンの絶対上限時間。バックエンドが session.idle を届けずに固まっても、
+// これを越えたら強制終了して無限待ちを防ぐの。正規の生成は数秒〜数十秒で
+// 収まるから、余裕を持たせた値にしてある。
+const StreamMaxWait = 5 * time.Minute
 
 // セッションの状態。すべてのフィールドが自スレッド内でのみ触られる
 // （stdio の逐次化が守る）から、追加の同期は要らないの。
@@ -103,9 +109,10 @@ func (S *Session) YukiFukuzawa(Ctx context.Context, UserText string, OnDelta fun
 	Messages = append(Messages, provider.Message{Role: provider.RoleSystem, Content: System})
 	Messages = append(Messages, S.History...)
 
-	// Each turn gets its own cancellable context — Abort() tears down the
-	// provider request mid-stream without touching session state.
-	TurnCtx, Cancel := context.WithCancel(Ctx)
+	// Each turn gets its own cancellable + deadline context — Abort() tears
+	// down the provider request mid-stream, and the deadline is a hard ceiling
+	// so a backend that never idles cannot stall the turn forever.
+	TurnCtx, Cancel := context.WithTimeout(Ctx, StreamMaxWait)
 	S.Cancel = Cancel
 	defer func() {
 		S.Cancel = nil
@@ -138,6 +145,11 @@ func (S *Session) YukiFukuzawa(Ctx context.Context, UserText string, OnDelta fun
 		}
 	}
 	Result.Text = Full.String()
+	// ストリームが ctx の打ち切り（期限超過）で終わったなら、完了扱いに
+	// せずエラーを返す — 無限待ちは防いだが、黙って部分文を通すのは不親切だから。
+	if Err := Ctx.Err(); Err != nil {
+		return Result, Err
+	}
 	// Turn completed — only now do fired entries count toward dedup.
 	for _, Id := range Lore.Fired {
 		S.LastInjected[Id] = S.Turn

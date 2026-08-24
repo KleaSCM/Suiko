@@ -148,6 +148,19 @@ export interface AppError {
 	readonly Message: string;
 }
 
+// モデルドロップダウンの1行。value は "providerID/modelID" の形ね。
+export interface ModelOption {
+	readonly Value: string;
+	readonly Label: string;
+}
+
+// opencode サーバから引いたモデル一覧の成果。
+export interface ModelListResult {
+	readonly Ok: boolean;
+	readonly Message: string;
+	readonly Models: ModelOption[];
+}
+
 // チャット履歴の1メッセージ（フロントエンド専用）。
 export type MessageRole = "user" | "narrator";
 
